@@ -1,0 +1,7 @@
+[tools]
+terraform = "1.15.6"
+terragrunt = "1.0.8"
+kubectl = "1.36"
+helm = "4"
+awscli = "2"
+just = "latest"
