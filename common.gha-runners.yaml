@@ -1,0 +1,2 @@
+namespace: gha-runners
+chart_version: 0.14.2

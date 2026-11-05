@@ -1,3 +1,6 @@
+# load secrets (e.g. GHA_RUNNERS_GITHUB_TOKEN) from the gitignored .env
+set dotenv-load
+
 _default:
   just --list
 
