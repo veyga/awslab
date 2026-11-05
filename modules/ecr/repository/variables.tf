@@ -10,9 +10,10 @@ variable "mutable_tags" {
 }
 
 variable "keep_images" {
-  description = "how many images to keep; older ones are expired"
+  description = "how many images to keep; older ones are expired (null = keep everything)"
   type        = number
   default     = 20
+  nullable    = true
 }
 
 variable "force_delete" {

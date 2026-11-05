@@ -1,0 +1,138 @@
+# Helm charts under charts/<dir>/ are published to ECR as OCI artifacts:
+#   oci://<ecr>/veyga/charts/<Chart.yaml name>:<Chart.yaml version>
+#
+#   pull request -> lint every changed chart, and require its version to be bumped
+#   push to main -> package + push every changed chart (versions already in ECR are skipped)
+#   manual run   -> package + push every chart (same skip), e.g. to backfill
+#
+# Each chart needs its ECR repo first: contexts/hub/ecr/charts/<Chart.yaml name>.
+# Runs on our ARC runners; ECR access is the runner pod's Pod Identity.
+name: charts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - charts/**
+      - .github/workflows/charts.yml
+  pull_request:
+    paths:
+      - charts/**
+      - .github/workflows/charts.yml
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  HELM_VERSION: v4.3.1
+  CHART_REPO_PREFIX: veyga/charts
+
+concurrency:
+  group: charts-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  charts:
+    # the runner pod has ECR push rights: never run fork PRs on it
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: veygawslab-runner
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the diff against the base commit needs history
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      # charts/<dir> with a Chart.yaml that had any file change between base and head.
+      # Deleted charts drop out (no Chart.yaml at head).
+      - name: find changed charts
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          all_charts() { find charts -mindepth 2 -maxdepth 2 -name Chart.yaml -exec dirname {} \; | sort; }
+
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            *) base="" ;;
+          esac
+
+          # manual run, new branch (before = 000...) or a base no longer in history: everything
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            charts=$(all_charts)
+          else
+            charts=$(git diff --name-only "$base" HEAD -- charts \
+              | cut -d/ -f1-2 | sort -u \
+              | while read -r d; do [ -f "$d/Chart.yaml" ] && echo "$d"; done)
+          fi
+
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "charts=$(echo $charts)" >> "$GITHUB_OUTPUT"
+          echo "changed charts: ${charts:-none}"
+
+      - name: lint
+        if: steps.changed.outputs.charts != ''
+        run: |
+          for c in ${{ steps.changed.outputs.charts }}; do
+            helm lint "$c"
+          done
+
+      # a changed chart must carry a new, higher version or main can't publish it
+      - name: require version bump
+        if: github.event_name == 'pull_request' && steps.changed.outputs.charts != ''
+        env:
+          BASE: ${{ steps.changed.outputs.base }}
+        run: |
+          version() { grep -E '^version:' | head -1 | awk '{print $2}' | tr -d "\"'"; }
+          failed=0
+          for c in ${{ steps.changed.outputs.charts }}; do
+            new=$(version < "$c/Chart.yaml")
+            if ! old=$(git show "$BASE:$c/Chart.yaml" 2>/dev/null | version) || [ -z "$old" ]; then
+              echo "$c: new chart at $new"
+              continue
+            fi
+            highest=$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -1)
+            if [ "$new" = "$old" ] || [ "$highest" != "$new" ]; then
+              echo "::error file=$c/Chart.yaml::$c changed but its version is $new (main has $old); bump version in Chart.yaml"
+              failed=1
+            else
+              echo "$c: $old -> $new"
+            fi
+          done
+          exit $failed
+
+      # credentials come from the pod (Pod Identity); helm reads the docker login
+      - name: ecr login
+        if: github.event_name != 'pull_request' && steps.changed.outputs.charts != ''
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: publish
+        if: github.event_name != 'pull_request' && steps.changed.outputs.charts != ''
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          mkdir -p .packaged
+          for c in ${{ steps.changed.outputs.charts }}; do
+            name=$(helm show chart "$c" | grep -E '^name:' | awk '{print $2}')
+            version=$(helm show chart "$c" | grep -E '^version:' | awk '{print $2}' | tr -d "\"'")
+            ref="oci://$REGISTRY/$CHART_REPO_PREFIX/$name"
+
+            # versions are immutable in ECR: an existing one is left alone
+            if helm show chart "$ref" --version "$version" >/dev/null 2>&1; then
+              echo "::warning file=$c/Chart.yaml::$name $version is already published; bump the version to publish changes"
+              continue
+            fi
+
+            helm package "$c" --destination .packaged
+            helm push ".packaged/$name-$version.tgz" "oci://$REGISTRY/$CHART_REPO_PREFIX"
+            echo "- \`$ref\` \`$version\`" >> "$GITHUB_STEP_SUMMARY"
+          done
