@@ -62,7 +62,7 @@ variable "max_runners" {
 variable "runner_image" {
   description = "runner container image"
   type        = string
-  default     = "ghcr.io/actions/actions-runner:2.336.0"
+  default     = "ghcr.io/actions/actions-runner:2.338.2"
 }
 
 variable "container_mode" {

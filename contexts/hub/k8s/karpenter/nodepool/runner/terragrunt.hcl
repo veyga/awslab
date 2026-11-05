@@ -21,7 +21,7 @@ dependencies {
 inputs = {
   name                     = basename(get_terragrunt_dir())
   disruption_percentage    = "80%"
-  consolidate_after        = "10s"
+  consolidate_after        = "30m"
   termination_grace_period = "1h0m0s"
   node_class               = local.node_class
 
