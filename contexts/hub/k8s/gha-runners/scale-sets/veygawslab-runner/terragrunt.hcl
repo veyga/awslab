@@ -52,6 +52,9 @@ inputs = {
   # ECR push/pull for every job (Pod Identity)
   runner_service_account = dependency.pod_identity.outputs.service_account_name
 
+  # docker daemon sidecar, for job containers (`container:`) and image builds
+  container_mode = "dind"
+
   min_runners = 0
   max_runners = 5
 

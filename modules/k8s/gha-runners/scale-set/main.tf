@@ -37,7 +37,11 @@ resource "helm_release" "scale_set" {
   namespace        = var.namespace
   create_namespace = false
 
-  values = [yamlencode({
+  values = [yamlencode(merge(var.container_mode == null ? {} : {
+    # dind: a privileged docker daemon sidecar, so jobs can use `container:`, services
+    # and docker build
+    containerMode = { type = var.container_mode }
+    }, {
     githubConfigUrl    = var.github_config_url
     githubConfigSecret = kubernetes_secret_v1.github.metadata[0].name
 
@@ -87,5 +91,5 @@ resource "helm_release" "scale_set" {
         }]
       }
     }
-  })]
+  }))]
 }
