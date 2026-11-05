@@ -25,6 +25,12 @@ variable "org_url" {
   default     = "https://github.com/veygawslab"
 }
 
+variable "root_repo_url" {
+  description = "repo the root Application syncs; defaults to repo_url"
+  type        = string
+  default     = null
+}
+
 variable "target_revision" {
   description = "branch/tag the root Application tracks"
   type        = string

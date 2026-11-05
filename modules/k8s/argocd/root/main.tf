@@ -35,8 +35,9 @@ resource "kubernetes_secret_v1" "github_org_creds" {
   }
 }
 
-# The one Application Terraform manages: it syncs root/ in the gitops repo, which
-# defines the AppProject + ApplicationSet that generate every app's Applications
+# The one Application Terraform manages: the app-of-apps, syncing root_path in
+# root_repo_url (awslab's argocd/root/: the AppProject + one Application per app). The gitops
+# repo itself only holds what Kargo renders
 resource "kubernetes_manifest" "root" {
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -50,7 +51,7 @@ resource "kubernetes_manifest" "root" {
     spec = {
       project = "default"
       source = {
-        repoURL        = var.repo_url
+        repoURL        = coalesce(var.root_repo_url, var.repo_url)
         targetRevision = var.target_revision
         path           = var.root_path
       }

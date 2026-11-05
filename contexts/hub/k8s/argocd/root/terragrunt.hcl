@@ -1,4 +1,5 @@
-# app-of-apps: the root Application syncs root/ in veygawslab/gitops
+# app-of-apps: the root Application syncs argocd/root/ in this repo (veygawslab/awslab).
+# veygawslab/gitops (repo_url, credentials only) holds just what Kargo renders
 include "root" {
   path   = find_in_parent_folders("root.hcl")
   expose = true
@@ -19,8 +20,10 @@ dependencies {
 }
 
 inputs = {
-  namespace = local.argo_vars.namespace
-  repo_url  = local.argo_vars.repo_url
+  namespace     = local.argo_vars.namespace
+  repo_url      = local.argo_vars.repo_url
+  root_repo_url = "https://github.com/veygawslab/awslab.git"
+  root_path     = "argocd/root"
 
   # fine-grained PAT, resource owner veygawslab, repo veygawslab/gitops,
   # "Contents: read and write" (Argo CD reads; Kargo, contexts/hub/k8s/kargo/helm, pushes).

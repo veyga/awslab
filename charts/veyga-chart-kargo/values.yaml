@@ -14,7 +14,7 @@ argocd:
   # -- Namespace Argo CD (and its Applications) live in
   namespace: argocd
   # -- AppProject the Applications belong to
-  project: product
+  project: default
   # -- Render one Argo CD Application per stage, deploying gitops <stage>/<name>/
   createApplications: true
 
