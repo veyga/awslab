@@ -1,0 +1,56 @@
+crds:
+  install: true
+
+global:
+  domain: ${domain}
+%{ if length(node_selector) > 0 ~}
+  nodeSelector:
+%{ for key, value in node_selector ~}
+    ${key}: "${value}"
+%{ endfor ~}
+%{ endif ~}
+
+# no SSO yet: log in as `admin` (password in the argocd-initial-admin-secret secret)
+dex:
+  enabled: false
+
+server:
+  replicas: ${server_replicas}
+%{ if ingress_enabled ~}
+  ingress:
+    enabled: true
+    ingressClassName: ${ingress_class}
+    hostname: ${domain}
+    annotations:
+%{ for key, value in ingress_annotations ~}
+      ${key}: "${value}"
+%{ endfor ~}
+      cert-manager.io/cluster-issuer: ${cert_issuer}
+    # cert-manager issues the certificate into the argocd-server-tls secret
+    tls: true
+%{ endif ~}
+
+repoServer:
+  replicas: ${repo_server_replicas}
+
+controller:
+  replicas: ${controller_replicas}
+
+configs:
+  params:
+    # TLS terminates at traefik; argocd-server serves plain HTTP behind it
+    server.insecure: true
+
+  cm:
+    url: https://${domain}
+    # traefik doesn't populate Ingress status, so Argo would otherwise show these as Progressing forever
+    resource.customizations.health.networking.k8s.io_Ingress: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "Ingress is healthy"
+      return hs
+    resource.customizations.health.traefik.io_IngressRoute: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "IngressRoute is healthy"
+      return hs
