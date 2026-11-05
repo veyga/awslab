@@ -22,12 +22,12 @@ dependency "traefik" {
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
 }
 
-# every *.awslab.io hostname goes to traefik, which routes by Host
+# every *.veyga.click hostname goes to traefik, which routes by Host
 inputs = {
-  zone_name = "awslab.io"
+  zone_name = "veyga.click"
   alias_records = {
     wildcard = {
-      name                   = "*.awslab.io"
+      name                   = "*.veyga.click"
       target_dns_name        = dependency.traefik.outputs.nlb_dns_name
       target_zone_id         = dependency.traefik.outputs.nlb_zone_id
       record_type            = "A"

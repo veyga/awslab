@@ -20,3 +20,4 @@ terragrunt-debug.tfvars.json
 *.pem
 tmp/
 .claude
+domain-contact.yaml
