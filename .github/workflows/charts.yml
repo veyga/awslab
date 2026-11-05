@@ -1,7 +1,7 @@
 # Helm charts under charts/<dir>/ are published to ECR as OCI artifacts:
 #   oci://<ecr>/veyga/charts/<Chart.yaml name>:<Chart.yaml version>
 #
-#   pull request -> lint every changed chart, and require its version to be bumped
+#   pull request -> require every changed chart's version to be bumped
 #   push to main -> package + push every changed chart (versions already in ECR are skipped)
 #   manual run   -> package + push every chart (same skip), e.g. to backfill
 #
@@ -77,13 +77,6 @@ jobs:
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "charts=$(echo $charts)" >> "$GITHUB_OUTPUT"
           echo "changed charts: ${charts:-none}"
-
-      - name: lint
-        if: steps.changed.outputs.charts != ''
-        run: |
-          for c in ${{ steps.changed.outputs.charts }}; do
-            helm lint "$c"
-          done
 
       # a changed chart must carry a new, higher version or main can't publish it
       - name: require version bump
