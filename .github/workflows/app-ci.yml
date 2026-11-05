@@ -7,10 +7,11 @@
 #   push to main -> release: find the merged PR, point <ecr>/<image>:<version> at the image
 #                            published for it, then create the v<version> git tag + release
 #
-# Every copy is registry-side (no rebuild): the released image is byte-for-byte the one that
-# was tested, so the image has to carry its test tooling (e.g. the dev dependency group) and
-# tests. Candidates live in their own repository, <image>-ci, whose images expire after a few
-# days (contexts/hub/ecr/<name>: ci_repository.enabled = true).
+# Every copy is a registry-side `skopeo copy` (no rebuild, same digest; skopeo is in the
+# runner image): the released image is byte-for-byte the one that was tested, so the image has
+# to carry its test tooling (e.g. the dev dependency group) and tests. Candidates live in their
+# own repository, <image>-ci, whose images expire after a few days
+# (contexts/hub/ecr/<name>: ci_repository.enabled = true).
 #
 # Versions are CalVer, YYYY.M.N (UTC): N counts releases within the month, from 0
 # (2026.11.0, 2026.11.1, 2026.12.0). No zero padding, so every version is also strict semver
@@ -175,10 +176,12 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       # registry-side copy: the published image is byte-for-byte the tested candidate
+      # (--preserve-digests fails rather than ever write a different digest). skopeo reads the
+      # docker login from ecr login
       - name: publish
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: docker buildx imagetools create --tag "$REGISTRY/$IMAGE" "$REGISTRY/$CANDIDATE"
+        run: skopeo copy --preserve-digests --all "docker://$REGISTRY/$CANDIDATE" "docker://$REGISTRY/$IMAGE"
 
       - name: summary
         run: |
@@ -250,7 +253,7 @@ jobs:
           if docker manifest inspect "$TARGET" >/dev/null 2>&1; then
             echo "::notice::$TARGET already exists"
           else
-            docker buildx imagetools create --tag "$TARGET" "$SOURCE"
+            skopeo copy --preserve-digests --all "docker://$SOURCE" "docker://$TARGET"
           fi
 
       - name: github release
