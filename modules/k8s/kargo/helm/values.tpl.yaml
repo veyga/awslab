@@ -1,0 +1,113 @@
+global:
+  # keep Kargo's system/shared resources in its own namespace instead of the two extra
+  # namespaces the chart creates by default
+  systemResources:
+    namespace: ${namespace}
+    createNamespace: false
+  sharedResources:
+    namespace: ${namespace}
+    createNamespace: false
+%{ if length(node_selector) > 0 ~}
+  nodeSelector:
+%{ for key, value in node_selector ~}
+    ${key}: "${value}"
+%{ endfor ~}
+%{ endif ~}
+
+api:
+  host: ${domain}
+  replicas: ${api_replicas}
+  logFormat: JSON
+
+  # admin password hash + token signing key come from the Terraform-managed Secret
+  secret:
+    name: ${admin_secret}
+  adminAccount:
+    enabled: true
+
+  # TLS terminates at traefik; the API server serves plain HTTP behind it
+  tls:
+    enabled: false
+    terminatedUpstream: true
+
+  ingress:
+    enabled: true
+    ingressClassName: ${ingress_class}
+    pathType: Prefix
+    annotations:
+      cert-manager.io/cluster-issuer: ${cert_issuer}
+    # cert-manager issues the certificate into this secret
+    tls:
+      enabled: true
+      selfSignedCert: false
+      secretName: kargo-api-ingress-cert
+
+  # deep links from Kargo's UI to Argo CD
+  argocd:
+    urls:
+      "": ${argocd_url}
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+controller:
+  logFormat: JSON
+
+  argocd:
+    integrationEnabled: true
+    namespace: ${argocd_namespace}
+
+  gitClient:
+    pushIntegrationPolicy: RebaseOrMerge
+
+  images:
+    cache:
+      # cache image metadata by tag: our ECR tags are immutable (except `latest`, which a
+      # Warehouse shouldn't subscribe to), and it cuts registry calls
+      # https://docs.kargo.io/user-guide/how-to-guides/working-with-warehouses/#caching-image-metadata-by-tag
+      cacheByTagPolicy: Force
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+# receives webhooks from git/registries to refresh Warehouses; not exposed yet
+externalWebhooksServer:
+  enabled: false
+
+garbageCollector:
+  enabled: true
+  logFormat: JSON
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+managementController:
+  logFormat: JSON
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+webhooksServer:
+  enabled: true
+  replicas: ${webhooks_server_replicas}
+  logFormat: JSON
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

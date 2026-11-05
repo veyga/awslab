@@ -23,7 +23,7 @@ inputs = {
   repo_url  = local.argo_vars.repo_url
 
   # fine-grained PAT, resource owner veygawslab, repo veygawslab/gitops,
-  # "Contents: read" (Kargo will later need read and write)
+  # "Contents: read and write" (Argo CD reads; Kargo, contexts/hub/k8s/kargo/helm, pushes)
   # this I'm keeping locally in an .env file
   # in reality this would be saved in vault/secrets manager and pulled
   # down during the 'apply'
