@@ -16,4 +16,5 @@ Traefik Ingress with a cert-manager certificate. Every resource is named after t
 | `ingress.className` | `traefik` | |
 | `ingress.host` | `""` | required when the ingress is enabled |
 | `ingress.clusterIssuer` | `clusterissuer-prod` | empty = no TLS |
+| `environment` | `""` | container env `ENVIRONMENT` (e.g. `dev`, `prod`); empty = not set |
 | `nodeSelector` | `{}` | |

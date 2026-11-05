@@ -25,6 +25,11 @@ spec:
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.environment }}
+          env:
+            - name: ENVIRONMENT
+              value: {{ . | quote }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.deployment.httpPort }}

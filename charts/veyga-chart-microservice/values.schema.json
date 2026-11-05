@@ -42,6 +42,7 @@
       "if": { "properties": { "enabled": { "const": true } } },
       "then": { "properties": { "host": { "minLength": 1 } } }
     },
+    "environment": { "type": "string" },
     "nodeSelector": {
       "type": "object",
       "additionalProperties": { "type": "string" }

@@ -24,5 +24,9 @@ ingress:
   # cert-manager ClusterIssuer for the TLS certificate; empty = plain HTTP
   clusterIssuer: clusterissuer-prod
 
+# Environment name (e.g. dev, prod), set on the container as ENVIRONMENT; empty = not set.
+# veyga-kargo sets it from the Kargo stage name (render.environmentValueKey)
+environment: ""
+
 # Node labels the pods must land on, e.g. karpenter.sh/nodepool: main
 nodeSelector: {}
