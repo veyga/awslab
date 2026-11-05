@@ -1,3 +1,4 @@
+# this allows me to specificy TG dependencies on a higher level dir
 include "root" {
   path   = find_in_parent_folders("root.hcl")
   expose = true
@@ -9,9 +10,8 @@ terraform {
 
 dependencies {
   paths = [
-    "${get_terragrunt_dir()}/netx",
-    "${get_terragrunt_dir()}/iiif",
-    "${get_terragrunt_dir()}/valve/worker",
+    "${get_terragrunt_dir()}/main",
+    "${get_terragrunt_dir()}/worker",
   ]
 }
 
@@ -26,5 +26,3 @@ generate "noop" {
   }
   EOF
 }
-
-

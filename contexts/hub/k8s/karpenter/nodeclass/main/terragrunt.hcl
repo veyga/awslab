@@ -35,13 +35,19 @@ inputs = {
   security_group_id = dependency.eks.outputs.cluster_primary_security_group_id
   subnets = [
     {
+      id = dependency.vpc.outputs.private_subnets[0]
+    },
+    {
+      id = dependency.vpc.outputs.private_subnets[1]
+    },
+    {
       id = dependency.vpc.outputs.private_subnets[2]
-    }
+    },
   ]
   tags = merge(include.root.locals.aws.tags,
     {
       "created_by"  = "karpenter"
-      "environment" = "production"
+      "environment" = "infrastructure"
   })
   ami            = "al2023"
   root_volume_gb = 40

@@ -1,5 +1,5 @@
 locals {
-  group = var.eks_auto ? "eks.amazonaws.com" : "karpenter.k8s.aws"
+  group = "karpenter.k8s.aws"
 }
 
 resource "kubernetes_manifest" "karpenter_nodepool" {
@@ -41,7 +41,7 @@ resource "kubernetes_manifest" "karpenter_nodepool" {
           terminationGracePeriod = var.termination_grace_period
           nodeClassRef = {
             group = local.group
-            kind  = var.eks_auto ? "NodeClass" : "EC2NodeClass"
+            kind  = "EC2NodeClass"
             name  = var.node_class
           }
           requirements = [

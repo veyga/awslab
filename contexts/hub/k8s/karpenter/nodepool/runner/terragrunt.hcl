@@ -1,3 +1,4 @@
+# general purpose nodepool for spot nodes
 include "root" {
   path   = find_in_parent_folders("root.hcl")
   expose = true
@@ -8,22 +9,21 @@ terraform {
 }
 
 locals {
-  env = basename(get_terragrunt_dir())
+  node_class = "main"
 }
 
 dependencies {
   paths = [
-    "${get_terragrunt_dir()}/../../../../nodeclass/${local.env}-worker"
+    "${get_terragrunt_dir()}/../../nodeclass/${local.node_class}"
   ]
 }
 
-# CONF idc valve-worker-dev nodepool
 inputs = {
-  name                     = "valve-worker-${local.env}"
+  name                     = basename(get_terragrunt_dir())
   disruption_percentage    = "80%"
   consolidate_after        = "10s"
   termination_grace_period = "1h0m0s"
-  node_class               = "${local.env}-worker"
+  node_class               = local.node_class
 
   capacity_types          = ["spot"]
   instance_categories     = ["c", "m", "t"]
@@ -32,13 +32,8 @@ inputs = {
 
   taints = [
     {
-      key   = "valve-worker-${local.env}-taint"
-      value = "valve-worker-${local.env}-value"
+      key   = "runner-taint"
+      value = "runner-value"
     },
   ]
-
-  eks_auto = false
-  labels = {
-    "netx/promstack" = false
-  }
 }

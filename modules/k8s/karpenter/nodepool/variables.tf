@@ -57,11 +57,6 @@ variable "labels" {
   default     = {}
 }
 
-variable "eks_auto" {
-  description = "whether or not this cluster uses eks auto"
-  type        = bool
-}
-
 variable "weight" {
   description = "Priority weight for this nodepool (higher = preferred)"
   type        = number
