@@ -38,12 +38,12 @@ terraform_version_constraint  = ">= 1.17.0"
 remote_state {
   backend = "s3"
   config = {
-    encrypt        = true
-    bucket         = "veyga-awslab-tfstate"
-    key            = "${local.terragrunt_layer}/terraform.tfstate"
-    region         = "us-east-1"
-    profile        = local.aws.profile
-    dynamodb_table = "veyga-awslab-terraform-locks"
+    encrypt      = true
+    bucket       = "veyga-awslab-tfstate"
+    key          = "${local.terragrunt_layer}/terraform.tfstate"
+    region       = "us-east-1"
+    profile      = local.aws.profile
+    use_lockfile = true # S3-native locking (replaces the deprecated dynamodb_table)
   }
 
   generate = {
