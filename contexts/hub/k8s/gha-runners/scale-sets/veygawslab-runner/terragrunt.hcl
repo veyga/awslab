@@ -18,6 +18,14 @@ dependencies {
   ]
 }
 
+dependency "pod_identity" {
+  config_path = "${get_terragrunt_dir()}/../../pod-identity"
+  mock_outputs = {
+    service_account_name = "gha-runner"
+  }
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+}
+
 dependency "controller" {
   config_path = "${get_terragrunt_dir()}/../../controller"
   mock_outputs = {
@@ -40,6 +48,12 @@ inputs = {
   # in reality this would be saved in vault/secrets manager and pulled
   # down during the 'apply'
   github_token = get_env("GHA_RUNNERS_GITHUB_TOKEN", "")
+
+  # ECR push/pull for every job (Pod Identity)
+  runner_service_account = dependency.pod_identity.outputs.service_account_name
+
+  # docker daemon sidecar, for job containers (`container:`) and image builds
+  container_mode = "dind"
 
   min_runners = 0
   max_runners = 5

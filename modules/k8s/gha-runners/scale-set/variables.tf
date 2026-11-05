@@ -62,7 +62,24 @@ variable "max_runners" {
 variable "runner_image" {
   description = "runner container image"
   type        = string
-  default     = "ghcr.io/actions/actions-runner:2.336.0"
+  default     = "ghcr.io/actions/actions-runner:2.338.2"
+}
+
+variable "container_mode" {
+  description = "ARC container mode: null (no docker daemon), \"dind\" or \"kubernetes\""
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.container_mode == null || contains(["dind", "kubernetes"], coalesce(var.container_mode, "x"))
+    error_message = "container_mode must be null, \"dind\" or \"kubernetes\""
+  }
+}
+
+variable "runner_service_account" {
+  description = "service account for the runner pods (e.g. one with a Pod Identity association); null = namespace default"
+  type        = string
+  default     = null
 }
 
 variable "runner_resources" {
