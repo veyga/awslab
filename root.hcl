@@ -65,6 +65,12 @@ terraform {
       version = ">= 6.72.0"
     }
     %{endif}
+    %{if contains(local.providers, "helm")}
+    helm = {
+      source  = "hashicorp/helm"
+      version = "3.3.0"
+    }
+    %{endif}
   }
 }
 EOT
@@ -83,6 +89,20 @@ provider "aws" {
   profile = "${local.aws.profile}"
   default_tags {
     tags = ${jsonencode(local.aws.tags)}
+  }
+}
+EOT
+}
+
+generate "provider_helm" {
+  path      = "provider_helm.tf"
+  if_exists = "skip"
+  disable   = !(contains(local.providers, "helm"))
+  contents  = <<EOT
+provider "helm" {
+  kubernetes = {
+    config_path    = "~/.kube/config"
+    config_context = "${local.ctx}"
   }
 }
 EOT

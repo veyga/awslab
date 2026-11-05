@@ -24,11 +24,6 @@ variable "replicas" {
   type        = string
 }
 
-variable "karpenter_cluster" {
-  description = "if this cluster uses Karpenter for node provisioning"
-  type        = bool
-}
-
 variable "tags" {
   description = "A map of tags to assign to the resources"
   type        = map(string)

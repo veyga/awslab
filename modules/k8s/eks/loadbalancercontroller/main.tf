@@ -39,16 +39,16 @@ resource "helm_release" "aws_load_balancer_controller" {
       name   = "aws-load-balancer-controller"
     }
 
-    nodeSelector = var.karpenter_cluster ? {
+    nodeSelector = {
       "karpenter.sh/controller" = "true"
-    } : null
+    }
 
-    tolerations = var.karpenter_cluster ? [{
+    tolerations = [{
       key      = "karpenter.sh/controller"
       operator = "Equal"
       value    = "true"
       effect   = "NoSchedule"
-    }] : null
+    }]
 
     defaultTags = var.tags
   })]

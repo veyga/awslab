@@ -26,7 +26,6 @@ inputs = {
   cluster_name      = include.root.locals.ctx
   vpc_id            = dependency.vpc.outputs.vpc_id
   aws_region        = include.root.locals.aws.region
-  karpenter_cluster = true
   tags              = include.root.locals.aws.tags
   replicas          = 1
 }
