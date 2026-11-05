@@ -26,3 +26,14 @@ variable "tags" {
   description = "aws tags"
   type        = map(string)
 }
+
+variable "ci_repository" {
+  description = "also create <name>-ci for CI candidate images (app-ci), expired after expire_days"
+  type = object({
+    enabled     = bool
+    expire_days = optional(number, 3)
+  })
+  default = {
+    enabled = false
+  }
+}
