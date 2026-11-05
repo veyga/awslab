@@ -88,7 +88,7 @@ FROM ghcr.io/actions/actions-runner:${RUNNER_VERSION}
 USER root
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends make zip gettext-base \
+  && apt-get install -y --no-install-recommends make zip gettext-base skopeo \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=uv /uv /uvx /usr/local/bin/
@@ -105,7 +105,8 @@ RUN docker --version \
   && aws --version \
   && terraform version \
   && terragrunt --version \
-  && just --version
+  && just --version \
+  && skopeo --version
 
 # ARC starts the container with /home/runner/run.sh as the runner user
 USER runner
