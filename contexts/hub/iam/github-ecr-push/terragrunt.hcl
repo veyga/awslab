@@ -12,9 +12,11 @@ inputs = {
   name = basename(get_terragrunt_dir())
 
   # main pushes latest, PRs (same-repo branches only; forks get no token) push sha tags
+  # the repo uses GitHub's immutable subject format: owner/repo carry their numeric ids
+  # (gh api repos/veygawslab/awslab/actions/oidc/customization/sub -> sub_claim_prefix)
   subjects = [
-    "repo:veygawslab/awslab:ref:refs/heads/main",
-    "repo:veygawslab/awslab:pull_request",
+    "repo:veygawslab@352721309/awslab@1446295762:ref:refs/heads/main",
+    "repo:veygawslab@352721309/awslab@1446295762:pull_request",
   ]
 
   # full ECR access (every action, every repository in the account)
