@@ -1,12 +1,15 @@
 # Helm charts under charts/<dir>/ are published to ECR as OCI artifacts:
 #   oci://<ecr>/veyga/charts/<Chart.yaml name>:<Chart.yaml version>
 #
-#   pull request -> require every changed chart's version to be bumped
-#   push to main -> package + push every changed chart (versions already in ECR are skipped)
-#   manual run   -> package + push every chart (same skip), e.g. to backfill
+#   pull request       -> require every changed chart's version to be bumped
+#   push to main / run -> push every chart whose Chart.yaml version isn't in ECR yet
+#
+# Publishing is driven by the registry, not the diff: unchanged charts are already
+# published and skipped, and a chart whose run failed is picked up by the next one.
 #
 # Each chart needs its ECR repo first: contexts/hub/ecr/charts/<Chart.yaml name>.
-# Runs on our ARC runners; ECR access is the runner pod's Pod Identity.
+# Runs on our ARC runners (helm comes from our runner image); ECR access is the runner
+# pod's Pod Identity.
 name: charts
 
 on:
@@ -23,7 +26,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  HELM_VERSION: v4.3.1
   CHART_REPO_PREFIX: veyga/charts
 
 concurrency:
@@ -43,10 +45,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the diff against the base commit needs history
-
-      - uses: azure/setup-helm@v5
-        with:
-          version: ${{ env.HELM_VERSION }}
 
       # charts/<dir> with a Chart.yaml that had any file change between base and head.
       # Deleted charts drop out (no Chart.yaml at head).
@@ -104,24 +102,30 @@ jobs:
 
       # credentials come from the pod (Pod Identity); helm reads the docker login
       - name: ecr login
-        if: github.event_name != 'pull_request' && steps.changed.outputs.charts != ''
+        if: github.event_name != 'pull_request'
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: publish
-        if: github.event_name != 'pull_request' && steps.changed.outputs.charts != ''
+        if: github.event_name != 'pull_request'
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
+          CHANGED: ${{ steps.changed.outputs.charts }}
         run: |
           mkdir -p .packaged
-          for c in ${{ steps.changed.outputs.charts }}; do
+          for c in $(find charts -mindepth 2 -maxdepth 2 -name Chart.yaml -exec dirname {} \; | sort); do
             name=$(helm show chart "$c" | grep -E '^name:' | awk '{print $2}')
             version=$(helm show chart "$c" | grep -E '^version:' | awk '{print $2}' | tr -d "\"'")
             ref="oci://$REGISTRY/$CHART_REPO_PREFIX/$name"
 
-            # versions are immutable in ECR: an existing one is left alone
+            # versions are immutable in ECR: an existing one is left alone. Only worth
+            # a warning when the chart changed in this push (a forgotten version bump).
             if helm show chart "$ref" --version "$version" >/dev/null 2>&1; then
-              echo "::warning file=$c/Chart.yaml::$name $version is already published; bump the version to publish changes"
+              if [[ " $CHANGED " == *" $c "* ]]; then
+                echo "::warning file=$c/Chart.yaml::$name $version is already published; bump the version to publish changes"
+              else
+                echo "$name $version: already published"
+              fi
               continue
             fi
 
