@@ -36,6 +36,9 @@ inputs = {
 
   # fine-grained PAT, resource owner veygawslab, with the organization permission
   # "Self-hosted runners: read and write"
+  # this I'm keeping locally in an .env file
+  # in reality this would be saved in vault/secrets manager and pulled
+  # down during the 'apply'
   github_token = get_env("GHA_RUNNERS_GITHUB_TOKEN", "")
 
   min_runners = 0
