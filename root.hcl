@@ -1,10 +1,10 @@
 locals {
-  terragrunt_layer    = path_relative_to_include()
-  context             = try(read_terragrunt_config(find_in_parent_folders("context.hcl")).locals, {})
-  ctx                 = try(local.context.ctx, "NA")
-  cluster_full_name   = try(local.context.cluster_full_name, "NA")
+  terragrunt_layer  = path_relative_to_include()
+  context           = try(read_terragrunt_config(find_in_parent_folders("context.hcl")).locals, {})
+  ctx               = try(local.context.ctx, "NA")
+  cluster_full_name = try(local.context.cluster_full_name, "NA")
   # authentik_app_group = try(local.context.authentik_app_group, "ops")
-  arch                = try(local.context.arch, "NA")
+  arch = try(local.context.arch, "NA")
   # ingress_class       = try(local.context.ingress_class, "traefik")
   # cluster_issuer      = try(local.context.cluster_issuer, "clusterissuer-prod")
   # ecr                 = "903832772335.dkr.ecr.us-west-2.amazonaws.com"
@@ -12,12 +12,13 @@ locals {
   providers_inherited = try(read_terragrunt_config(find_in_parent_folders("providers.hcl")).locals.providers, [])
   providers_override = try(read_terragrunt_config("${get_original_terragrunt_dir()}/providers.hcl").locals.providers,
   [])
-  providers      = length(local.providers_override) > 0 ? local.providers_override : local.providers_inherited
+  providers = length(local.providers_override) > 0 ? local.providers_override : local.providers_inherited
   # authentik_url  = "https://multipass.netx.us"
   # dockerhub_repo = "netxadmin"
 
   aws = {
-    region = "us-east-1"
+    region  = "us-east-1"
+    profile = "aws1" # ~/.aws/config profile used by the provider and the state backend
     tags = merge(
       {
         created_by = "terraform",
@@ -33,7 +34,6 @@ locals {
 
 terragrunt_version_constraint = ">= 1.2.0"
 terraform_version_constraint  = ">= 1.17.0"
-iam_role                      = "arn:aws:iam::${local.aws.accounts.default}:role/Administrator"
 
 remote_state {
   backend = "s3"
@@ -42,6 +42,7 @@ remote_state {
     bucket         = "veyga-awslab-tfstate"
     key            = "${local.terragrunt_layer}/terraform.tfstate"
     region         = "us-east-1"
+    profile        = local.aws.profile
     dynamodb_table = "veyga-awslab-terraform-locks"
   }
 
@@ -78,7 +79,8 @@ generate "provider_aws" {
   disable   = !(contains(local.providers, "aws"))
   contents  = <<EOT
 provider "aws" {
-  region = "${local.aws.region}"
+  region  = "${local.aws.region}"
+  profile = "${local.aws.profile}"
   default_tags {
     tags = ${jsonencode(local.aws.tags)}
   }
