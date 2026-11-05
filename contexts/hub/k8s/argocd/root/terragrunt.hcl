@@ -26,6 +26,7 @@ inputs = {
   # every app deployed through Argo CD + Kargo: add its repo here
   app_repos = [
     "https://github.com/veygawslab/exampleapp.git",
+    "https://github.com/veygawslab/devops-task.git", # helloapp
   ]
 
   # fine-grained PAT, resource owner veygawslab, repo veygawslab/gitops,
