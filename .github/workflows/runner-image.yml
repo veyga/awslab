@@ -1,5 +1,8 @@
 #   pull request -> <ecr>/veyga/gharunner:<short head sha>  (immutable, for testing the PR)
 #   push to main -> <ecr>/veyga/gharunner:latest             (the only mutable tag)
+#
+# Runs on our ARC runners (scale set in dind mode, for the docker daemon). AWS access is the
+# runner pod's Pod Identity (service account gha-runner): no OIDC role, no credentials step.
 name: runner-image
 
 on:
@@ -16,7 +19,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: "519915467343"
   ECR_REPOSITORY: veyga/gharunner
   IMAGE_CONTEXT: images/gha-runner
   IMAGE_PLATFORMS: linux/amd64
@@ -31,12 +33,10 @@ permissions:
 
 jobs:
   image:
-    # fork PRs get no OIDC token, so they can't push
+    # the runner pod has ECR push rights: never run fork PRs on it
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # OIDC token for the AWS role
+    runs-on: veygawslab-runner
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -52,24 +52,19 @@ jobs:
             echo "tag=${SHA::8}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: aws credentials
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-ecr-push
-          role-session-name: runner-image-${{ github.run_id }}
-          aws-region: ${{ env.AWS_REGION }}
-
+      # credentials come from the pod (AWS_CONTAINER_CREDENTIALS_FULL_URI + token, set by EKS)
       - name: ecr login
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # sha tags are immutable: re-running for an already-pushed sha is a no-op, not a failure
+      # sha tags are immutable: re-running for an already-pushed sha is a no-op, not a failure.
+      # docker, not the aws cli: the stock runner image has no aws cli
       - name: check for existing tag
         if: steps.tag.outputs.tag != 'latest'
         id: exists
         run: |
-          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
-              --image-ids imageTag="${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+          if docker manifest inspect \
+              "${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
             echo "already pushed, skipping"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           fi
@@ -84,6 +79,10 @@ jobs:
           context: ${{ env.IMAGE_CONTEXT }}
           platforms: ${{ env.IMAGE_PLATFORMS }}
           push: true
+          # no attestations: push one plain manifest instead of an index whose untagged
+          # children ECR lists (and the untagged lifecycle rule could expire)
+          provenance: false
+          sbom: false
           tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
