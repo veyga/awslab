@@ -1,0 +1,32 @@
+# Smoke test for the self-hosted ARC runners (contexts/hub/k8s/gha-runners).
+name: pr-smoke
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    # The repo is public: never run fork PRs on self-hosted runners in the cluster
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: veygawslab-runner
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Runner info
+        run: |
+          echo "PR #${{ github.event.pull_request.number }}: ${{ github.head_ref }} -> ${{ github.base_ref }}"
+          echo "runner: $RUNNER_NAME ($(hostname))"
+          echo "os: $(uname -srm)"
+          echo "cpus: $(nproc), memory: $(free -h | awk '/Mem:/ {print $2}')"
+
+      - name: Repo contents
+        run: git log --oneline -5 && ls -la
