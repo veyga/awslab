@@ -25,20 +25,18 @@ variable "org_url" {
   default     = "https://github.com/veygawslab"
 }
 
-variable "root_repo_url" {
-  description = "repo the root Application syncs; defaults to repo_url"
-  type        = string
-  default     = null
+variable "app_repos" {
+  description = "app repos whose deploy/application.yaml (an ApplicationSet) the root Application syncs"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.app_repos) > 0
+    error_message = "list at least one app repo"
+  }
 }
 
 variable "target_revision" {
-  description = "branch/tag the root Application tracks"
+  description = "branch the root Application tracks in every app repo"
   type        = string
   default     = "main"
-}
-
-variable "root_path" {
-  description = "directory in the gitops repo holding the root manifests"
-  type        = string
-  default     = "root"
 }

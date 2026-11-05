@@ -1,5 +1,6 @@
 # -- App name (required). Kargo Project/namespace: kargo-<name>; Warehouses: <name>-dev/-prod;
-# per stage: Argo CD Application <name>-<stage>, rendered manifests in gitops at <stage>/<name>/
+# per stage: rendered manifests in gitops at <stage>/<name>/, synced through the Argo CD
+# Application <name>-<stage> (from the app's own deploy/application.yaml ApplicationSet)
 name: ""
 
 # -- The app's own repo (required): holds the chart Kargo renders (render.chartPath)
@@ -11,12 +12,8 @@ gitops:
   branch: main
 
 argocd:
-  # -- Namespace Argo CD (and its Applications) live in
+  # -- Namespace the app's Argo CD Applications (<name>-<stage>) live in
   namespace: argocd
-  # -- AppProject the Applications belong to
-  project: default
-  # -- Render one Argo CD Application per stage, deploying gitops <stage>/<name>/
-  createApplications: true
 
 render:
   # -- Chart directory in gitRepo that gets `helm template`d

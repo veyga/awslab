@@ -1,11 +1,11 @@
 apiVersion: v2
 name: veyga-kargo
-description: "Kargo pipeline (Project, Warehouses, Stages) plus per-stage Argo CD Applications for one app: renders the app repo's chart into the gitops repo"
+description: "Kargo pipeline (Project, Warehouses, Stages) for one app: renders the app repo's chart into the gitops repo"
 maintainers:
 - email: andrewstefanich@gmail.com
   name: veyga
 type: application
 
-version: 0.0.1
+version: 0.0.2
 
 appVersion: "0.0.1"
