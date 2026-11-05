@@ -2,9 +2,9 @@ resource "helm_release" "karpenter" {
   namespace  = "kube-system"
   name       = "karpenter"
   repository = "oci://public.ecr.aws/karpenter"
-  chart   = "karpenter"
-  version = var.karpenter_version
-  wait    = false
+  chart      = "karpenter"
+  version    = var.karpenter_version
+  wait       = false
 
   values = [
     <<-EOT

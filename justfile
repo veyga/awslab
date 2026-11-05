@@ -36,6 +36,15 @@ apply target debug="false":
 destroy target debug="false":
   just _terragrunt destroy {{target}} {{debug}}
 
+# just output / output plan $(pwd) --debug
+output target=_PROJ_ROOT name="None":
+  #!/usr/bin/env bash
+  if [ "{{name}}" = "None" ]; then
+    just _terragrunt output {{target}}
+  else
+    just _terragrunt output {{target}} {{name}}
+  fi
+
 # enter the console to inspect TF
 console target:
   just _terragrunt console {{target}}

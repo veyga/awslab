@@ -86,3 +86,9 @@ variable "persist_logs" {
   type    = bool
   default = false
 }
+
+variable "cluster_name" {
+  description = "EKS cluster name; when set, the traefik NLB is looked up and exposed as outputs"
+  type        = string
+  default     = null
+}
