@@ -28,4 +28,7 @@ inputs = {
   }
   log_level   = "DEBUG"
   access_logs = true
+
+  # exposes the NLB (nlb_dns_name / nlb_zone_id) for the route53 records unit
+  cluster_name = include.root.locals.ctx
 }
