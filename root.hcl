@@ -71,6 +71,12 @@ terraform {
       version = "3.3.0"
     }
     %{endif}
+    %{if contains(local.providers, "kubernetes")}
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "3.4.0"
+    }
+    %{endif}
   }
 }
 EOT
@@ -104,6 +110,18 @@ provider "helm" {
     config_path    = "~/.kube/config"
     config_context = "${local.ctx}"
   }
+}
+EOT
+}
+
+generate "provider_kubernetes" {
+  path      = "provider_kubernetes.tf"
+  if_exists = "skip"
+  disable   = !(contains(local.providers, "kubernetes"))
+  contents  = <<EOT
+provider "kubernetes" {
+  config_path    = "~/.kube/config"
+  config_context = "${local.ctx}"
 }
 EOT
 }
