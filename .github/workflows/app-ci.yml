@@ -1,9 +1,19 @@
 # Reusable CI for app repos: PRs build + test an image, merges to main release it.
 #
-#   pull request -> build the image, run `test-command` inside it, push
-#                   <ecr>/<image>:<sha7> (sha of the PR head)
-#   push to main -> find the merged PR, point <ecr>/<image>:<version> at that PR's tested
-#                   image (no rebuild), then create the v<version> git tag + GitHub release
+#   pull request -> build the Dockerfile's `test-target` stage, run `test-command` inside it,
+#                   then build the final stage and push <ecr>/<image>:<sha7> (PR head sha).
+#                   Nothing is pushed unless the tests pass.
+#   push to main -> find the merged PR, point <ecr>/<image>:<version> at the image built for it
+#                   (no rebuild), then create the v<version> git tag + GitHub release
+#
+# The app's Dockerfile needs a test stage: the app plus its test deps/files, e.g.
+#
+#   FROM python:3.13-slim AS base     # deps + app
+#   FROM base AS test                 # + dev deps + tests (runs as root; never pushed)
+#   FROM base                         # final stage = the pushed image
+#
+# Both builds share the BuildKit layer cache (in-job, and the GitHub Actions cache across
+# runs), so the final build reuses the base layers the test build just made.
 #
 # Versions are CalVer, YYYY.M.N (UTC): N counts releases within the month, from 0
 # (2026.11.0, 2026.11.1, 2026.12.0). No zero padding, so every version is also strict semver
@@ -23,9 +33,10 @@
 #       uses: veygawslab/awslab/.github/workflows/app-ci.yml@main
 #       with:
 #         image: veyga/exampleapp
-#         test-command: pytest -v
+#         test-command: uv run pytest
 #
-# Runs on our ARC runners; ECR access is the runner pod's Pod Identity.
+# Runs on our ARC runners (images/gha-runner: uv, python, docker, aws, helm, ...); ECR access is
+# the runner pod's Pod Identity.
 name: app-ci
 
 on:
@@ -36,9 +47,13 @@ on:
         type: string
         required: true
       test-command:
-        description: "shell command run inside the built image (`sh -c`); empty = no tests"
+        description: "test command run (`sh -c`) inside the built test stage, e.g. `uv run pytest`; empty = no tests"
         type: string
         default: ""
+      test-target:
+        description: "Dockerfile stage the tests run in"
+        type: string
+        default: test
       context:
         description: "docker build context"
         type: string
@@ -91,7 +106,7 @@ jobs:
         id: ref
         run: echo "ref=${{ steps.ecr.outputs.registry }}/${{ inputs.image }}:${{ steps.tag.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
-      # tags are immutable: a re-run for an already pushed (so already tested) sha is a no-op
+      # tags are immutable: a re-run for an already pushed sha is a no-op
       - name: check for existing tag
         id: exists
         run: |
@@ -100,18 +115,42 @@ jobs:
             echo "exists=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # one builder for both builds, so the final build hits the test build's layers directly
       - uses: docker/setup-buildx-action@v4
         if: steps.exists.outputs.exists != 'true'
 
-      # load into the local daemon first: only a tested image gets pushed
-      - name: build
+      # separate cache scopes: each build's export would otherwise overwrite the other's
+      - name: build test stage
+        if: steps.exists.outputs.exists != 'true' && inputs.test-command != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.test-target }}
+          platforms: ${{ inputs.platforms }}
+          load: true
+          provenance: false
+          sbom: false
+          tags: app-ci-test:${{ steps.tag.outputs.tag }}
+          cache-from: |
+            type=gha,scope=test
+            type=gha,scope=final
+          cache-to: type=gha,scope=test,mode=max
+
+      - name: test
+        if: steps.exists.outputs.exists != 'true' && inputs.test-command != ''
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}
+        run: docker run --rm --entrypoint sh "app-ci-test:${{ steps.tag.outputs.tag }}" -c "$TEST_COMMAND"
+
+      - name: build and push
         if: steps.exists.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           platforms: ${{ inputs.platforms }}
-          load: true
+          push: true
           provenance: false
           sbom: false
           build-args: APP_VERSION=${{ steps.tag.outputs.tag }}
@@ -119,18 +158,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: test
-        if: steps.exists.outputs.exists != 'true' && inputs.test-command != ''
-        env:
-          TEST_COMMAND: ${{ inputs.test-command }}
-        run: docker run --rm --entrypoint sh "${{ steps.ref.outputs.ref }}" -c "$TEST_COMMAND"
-
-      - name: push
-        if: steps.exists.outputs.exists != 'true'
-        run: docker push "${{ steps.ref.outputs.ref }}"
+          cache-from: type=gha,scope=final
+          cache-to: type=gha,scope=final,mode=max
 
       - name: summary
         run: |
@@ -154,7 +183,7 @@ jobs:
         with:
           fetch-depth: 0 # tags + history since the last release
 
-      # the image to release is the one built and tested for the merged PR's head commit
+      # the image to release is the one built (after its tests passed) for the merged PR's head
       - name: find merged PR
         id: pr
         run: |
@@ -187,7 +216,7 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # registry-side copy of the tested image: the release is byte-for-byte what was tested
+      # registry-side copy: the release is byte-for-byte the image the PR built
       - name: tag image
         if: steps.pr.outputs.head != ''
         env:
