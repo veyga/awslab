@@ -10,6 +10,14 @@ deployment:
   # Port the container listens on for HTTP
   httpPort: 8080
   replicas: 1
+  # Extra container env vars, keyed by name: a string value, or an object with valueFrom
+  # (secretKeyRef, configMapKeyRef, fieldRef, ...). A map, so base and overlay values
+  # files merge (an overlay adds or overrides single vars), unlike lists, which replace.
+  #   BACKGROUND_COLOR: blue
+  #   DB_PASSWORD:
+  #     valueFrom:
+  #       secretKeyRef: {name: db, key: password}
+  env: {}
 
 service:
   type: ClusterIP

@@ -10,6 +10,7 @@ Traefik Ingress with a cert-manager certificate. Every resource is named after t
 | `deployment.command` | `[]` | entrypoint override |
 | `deployment.httpPort` | `8080` | container port |
 | `deployment.replicas` | `1` | |
+| `deployment.env` | `{}` | extra env vars by name: `NAME: value`, or `NAME: {valueFrom: ...}`; merges across values files |
 | `service.type` | `ClusterIP` | `ClusterIP`, `NodePort` or `LoadBalancer` |
 | `service.port` | `80` | forwards to `deployment.httpPort` |
 | `ingress.enabled` | `false` | |

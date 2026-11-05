@@ -25,10 +25,20 @@ spec:
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.environment }}
+          {{- if or .Values.environment .Values.deployment.env }}
           env:
+            {{- with .Values.environment }}
             - name: ENVIRONMENT
               value: {{ . | quote }}
+            {{- end }}
+            {{- range $name, $value := .Values.deployment.env }}
+            - name: {{ $name }}
+              {{- if kindIs "map" $value }}
+              {{- toYaml $value | nindent 14 }}
+              {{- else }}
+              value: {{ $value | toString | quote }}
+              {{- end }}
+            {{- end }}
           {{- end }}
           ports:
             - name: http
