@@ -12,12 +12,12 @@ their `deploy/application.yaml` ApplicationSet (synced by Argo CD's root Applica
 |---|---|---|
 | Project | `kargo-<name>` | also the namespace the rest lives in |
 | Warehouse | `<name>-prod` | release freight: CalVer (`YYYY.M.N`) image tags, cut on merge to main. Always created |
-| Warehouse | `<name>-dev` | build freight: short-sha image tags (from PRs), newest build. When a stage uses it |
+| Warehouse | `<name>-dev` | PR freight: the newest PR build image (`<sha7>`) + the newest `kargo-pr<N>-<sha7>` tag (app-ci), only when they're the same commit, so a PR's image ships with its own `deploy/`. When a stage uses it |
 | Stage (per stage) | `<stage>` | renders the app's chart into gitops `<stage>/<name>/` |
 | ProjectConfig | `kargo-<name>` | only when a stage sets `autoPromotion: true` |
 
-Freight = an image tag per `images[]` plus the newest app-repo commit touching
-`render.chartPath`. A `warehouse: dev` stage takes freight from both Warehouses, so a release
+Freight = an image tag per `images[]` plus an app-repo commit: for prod the newest `main`
+commit touching `render.chartPath`, for dev the PR head commit the image was built from. A `warehouse: dev` stage takes freight from both Warehouses, so a release
 can be verified there before a `warehouse: prod` stage (release freight only) gets it.
 
 ## Promotion

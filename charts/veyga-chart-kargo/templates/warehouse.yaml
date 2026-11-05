@@ -11,15 +11,29 @@ metadata:
     {{- include "veygaKargo.wave" 1 | nindent 4 }}
 spec:
   interval: {{ $.Values.warehouse.interval }}
+  {{- if and (eq $type "dev") $.Values.images }}
+  # an image built from the tagged commit: app-ci tags images with the PR head's short sha
+  freightCreationCriteria:
+    expression: |
+      {{ include "veygaKargo.devFreightCriteria" $ }}
+  {{- end }}
   subscriptions:
     - git:
         repoURL: {{ $.Values.gitRepo }}
+        discoveryLimit: {{ $.Values.warehouse.discoveryLimit }}
+        {{- if eq $type "dev" }}
+        commitSelectionStrategy: NewestTag
+        allowTagsRegexes:
+        {{- range $.Values.warehouse.devTags.git }}
+          - {{ . | quote }}
+        {{- end }}
+        {{- else }}
         branch: {{ $.Values.warehouse.branch }}
         commitSelectionStrategy: NewestFromBranch
-        discoveryLimit: {{ $.Values.warehouse.discoveryLimit }}
         includePaths:
         {{- range ($.Values.warehouse.includePaths | default (list $.Values.render.chartPath)) }}
           - {{ . }}
+        {{- end }}
         {{- end }}
     {{- range $.Values.images }}
     - image:
@@ -28,7 +42,7 @@ spec:
         {{- if eq $type "dev" }}
         imageSelectionStrategy: NewestBuild
         allowTagsRegexes:
-        {{- range $.Values.warehouse.devTagsRegexes }}
+        {{- range $.Values.warehouse.devTags.image }}
           - {{ . | quote }}
         {{- end }}
         {{- else }}

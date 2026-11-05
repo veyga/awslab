@@ -4,6 +4,9 @@
 #                            push it as a candidate, <ecr>/<image>-ci:<sha7> (PR head sha)
 #                   test:    pull the candidate, run `test-command` inside it
 #                   publish: once the tests pass, copy the candidate to <ecr>/<image>:<sha7>
+#                   pr-tag:  tag the PR head commit kargo-pr<N>-<sha7>: Kargo's dev Warehouse
+#                            pairs that image with that commit (its deploy/), so a PR's config
+#                            reaches dev together with its code
 #   push to main -> release: find the merged PR, point <ecr>/<image>:<version> at the image
 #                            published for it, then create the v<version> git tag + release
 #
@@ -24,7 +27,7 @@
 #     push:
 #       branches: [main]
 #   permissions:
-#     contents: write       # tag + release
+#     contents: write       # kargo-pr tags, release tag + GitHub release
 #     pull-requests: read   # find the PR a merge came from
 #   jobs:
 #     ci:
@@ -186,6 +189,38 @@ jobs:
       - name: summary
         run: |
           echo "image: \`${{ steps.ecr.outputs.registry }}/$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # after the image exists (just published, or by an earlier run): the tag is what makes
+  # Kargo pick the pair up, so it must never point at a commit without an image
+  pr-tag:
+    needs: [build, publish]
+    if: >-
+      always()
+      && needs.build.result == 'success'
+      && (needs.publish.result == 'success' || needs.build.outputs.published == 'true')
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      API: ${{ github.api_url }}/repos/${{ github.repository }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      TAG: kargo-pr${{ github.event.pull_request.number }}-${{ needs.build.outputs.tag }}
+    steps:
+      - name: tag PR head
+        run: |
+          existing=$(curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$API/git/ref/tags/$TAG" | jq -r '.object.sha // empty')
+          if [ "$existing" = "$SHA" ]; then
+            echo "$TAG already points at $SHA"
+            exit 0
+          elif [ -n "$existing" ]; then
+            echo "::error::$TAG already exists on $existing, not $SHA"
+            exit 1
+          fi
+          jq -n --arg ref "refs/tags/$TAG" --arg sha "$SHA" '{ref: $ref, sha: $sha}' \
+          | curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "$API/git/refs" -d @- >/dev/null
+          echo "tagged $SHA as $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
 
   release:
     if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)

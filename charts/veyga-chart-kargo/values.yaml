@@ -34,22 +34,28 @@ images: []
 #    helmValueKey: veyga-microservice.image.repository
 #    helmValuePrefix: "veyga/exampleapp:"
 
-# Two Warehouses, differing only in which image tags they accept:
-#   <name>-prod: release tags (YYYY.M.N CalVer, valid strict semver; cut on merge to main).
-#                Always created.
-#   <name>-dev:  build tags (short commit shas, from PRs), newest build wins. Created when a
-#                stage sets `warehouse: dev`.
-# Both also subscribe to gitRepo, so a change to the app's chart/values makes new freight too.
+# Two Warehouses:
+#   <name>-prod: release images (YYYY.M.N CalVer, valid strict semver; cut on merge to main)
+#                + the newest gitRepo `branch` commit touching includePaths. Always created.
+#   <name>-dev:  PR builds: the newest build image (<sha7>) + the newest PR tag
+#                (kargo-pr<N>-<sha7>, made by app-ci once the image is published), and only
+#                when they match: the image tag is the commit's short sha. So a PR's image
+#                always ships with that PR's deploy/ config. Created when a stage sets
+#                `warehouse: dev`.
 warehouse:
-  # -- Branch of gitRepo that new freight comes from
+  # -- Branch of gitRepo the prod Warehouse follows
   branch: main
-  # -- Only commits touching these paths make new freight; defaults to [render.chartPath]
+  # -- Only commits touching these paths make new prod freight; defaults to [render.chartPath]
   includePaths: []
   interval: 5m0s
   discoveryLimit: 20
-  # -- Image tags the dev Warehouse accepts
-  devTagsRegexes:
-    - "^[0-9a-f]{7}$"
+  devTags:
+    # -- Image tags the dev Warehouse accepts (app-ci PR builds)
+    image:
+      - "^[0-9a-f]{7}$"
+    # -- Git tags the dev Warehouse accepts (app-ci's tags on PR head commits)
+    git:
+      - "^kargo-pr[0-9]+-[0-9a-f]{7}$"
 
 # Ordered pipeline (required).
 #   warehouse: dev  -> takes freight from both Warehouses (build tags, and release tags so a

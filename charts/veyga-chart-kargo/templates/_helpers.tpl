@@ -17,6 +17,16 @@ kargo-{{ .Values.name }}
 {{- $types | toJson -}}
 {{- end -}}
 
+{{/* dev Warehouse freight criteria: every image's tag is a prefix of the git commit's sha */}}
+{{- define "veygaKargo.devFreightCriteria" -}}
+{{- $ctx := . -}}
+{{- $exprs := list -}}
+{{- range $ctx.Values.images -}}
+{{- $exprs = append $exprs (printf "hasPrefix(commitFrom('%s').ID, imageFrom('%s').Tag)" $ctx.Values.gitRepo .repoURL) -}}
+{{- end -}}
+{{- join " && " $exprs -}}
+{{- end -}}
+
 {{/* Argo CD Application name for a stage */}}
 {{- define "veygaKargo.appName" -}}
 {{ .context.Values.name }}-{{ .stage.name }}
