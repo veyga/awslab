@@ -1,4 +1,4 @@
-# role the runner-image GitHub workflow assumes (OIDC, no static keys) to push to ECR
+# role the runner-image GitHub workflow assumes (OIDC, no static keys) for ECR
 include "root" {
   path   = find_in_parent_folders("root.hcl")
   expose = true
@@ -6,14 +6,6 @@ include "root" {
 
 terraform {
   source = "${get_parent_terragrunt_dir()}/modules/iam/github-oidc-role"
-}
-
-dependency "ecr" {
-  config_path = "${get_terragrunt_dir()}/../../ecr/gha-runner"
-  mock_outputs = {
-    arn = "arn:aws:ecr:us-east-1:000000000000:repository/mock"
-  }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
 }
 
 inputs = {
@@ -25,29 +17,15 @@ inputs = {
     "repo:veygawslab/awslab:pull_request",
   ]
 
+  # full ECR access (every action, every repository in the account)
   policy_json = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "EcrLogin"
+        Sid      = "EcrFullAccess"
         Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken"]
+        Action   = ["ecr:*"]
         Resource = "*"
-      },
-      {
-        Sid    = "EcrPush"
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-          "ecr:PutImage",
-          "ecr:DescribeImages",
-        ]
-        Resource = dependency.ecr.outputs.arn
       },
     ]
   })

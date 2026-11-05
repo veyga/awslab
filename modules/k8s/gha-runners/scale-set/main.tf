@@ -68,8 +68,9 @@ resource "helm_release" "scale_set" {
     # runner: one ephemeral pod per job
     template = {
       spec = {
-        nodeSelector = var.runner_node_selector
-        tolerations  = var.runner_tolerations
+        serviceAccountName = var.runner_service_account
+        nodeSelector       = var.runner_node_selector
+        tolerations        = var.runner_tolerations
         containers = [{
           name    = "runner"
           image   = var.runner_image

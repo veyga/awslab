@@ -1,5 +1,5 @@
-#   pull request -> <ecr>/gha-runner:<short head sha>  (immutable, for testing the PR)
-#   push to main -> <ecr>/gha-runner:latest             (the only mutable tag)
+#   pull request -> <ecr>/veyga/gharunner:<short head sha>  (immutable, for testing the PR)
+#   push to main -> <ecr>/veyga/gharunner:latest             (the only mutable tag)
 name: runner-image
 
 on:
@@ -17,7 +17,7 @@ on:
 env:
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: "519915467343"
-  ECR_REPOSITORY: gha-runner
+  ECR_REPOSITORY: veyga/gharunner
   IMAGE_CONTEXT: images/gha-runner
   IMAGE_PLATFORMS: linux/amd64
 

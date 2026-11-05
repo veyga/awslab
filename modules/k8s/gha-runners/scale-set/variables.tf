@@ -65,6 +65,12 @@ variable "runner_image" {
   default     = "ghcr.io/actions/actions-runner:2.336.0"
 }
 
+variable "runner_service_account" {
+  description = "service account for the runner pods (e.g. one with a Pod Identity association); null = namespace default"
+  type        = string
+  default     = null
+}
+
 variable "runner_resources" {
   description = "runner pod resources; must fit on a node of the runner nodepool"
   type = object({
