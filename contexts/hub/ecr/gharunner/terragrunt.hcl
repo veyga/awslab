@@ -8,8 +8,8 @@ terraform {
 }
 
 inputs = {
-  name        = "veyga/${basename(get_terragrunt_dir())}"
-  keep_images = 20
+  name         = "veyga/${basename(get_terragrunt_dir())}"
+  keep_images  = 20
   mutable_tags = ["latest"]
   tags         = include.root.locals.aws.tags
 }
