@@ -19,6 +19,12 @@ variable "repo_token" {
   }
 }
 
+variable "org_url" {
+  description = "URL prefix the repo_token is used for as a credential template (every repo in the org)"
+  type        = string
+  default     = "https://github.com/veygawslab"
+}
+
 variable "target_revision" {
   description = "branch/tag the root Application tracks"
   type        = string

@@ -57,6 +57,11 @@ api:
 controller:
   logFormat: JSON
 
+  # ECR access via pod identity (see main.tf); the annotation restarts the controller
+  # whenever its role changes
+  podAnnotations:
+    veyga.click/iam-role: ${controller_role_arn}
+
   argocd:
     integrationEnabled: true
     namespace: ${argocd_namespace}

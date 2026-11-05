@@ -31,11 +31,12 @@ resource "kubernetes_secret_v1" "admin" {
 }
 
 # Shared git credentials: a Secret labeled cred-type=git in the shared resources namespace
-# (global.sharedResources, here Kargo's own namespace) is used by every Project for
-# matching repo URLs, so promotions can commit to the gitops repo
-resource "kubernetes_secret_v1" "gitops_repo" {
+# (global.sharedResources, here Kargo's own namespace) is used by every Project. The regex
+# covers every repo in the org: app repos (read, for freight and rendering) and the gitops
+# repo (read/write, where promotions commit)
+resource "kubernetes_secret_v1" "git" {
   metadata {
-    name      = "repo-gitops"
+    name      = "repo-github-org"
     namespace = var.namespace
     labels = {
       "kargo.akuity.io/cred-type" = "git"
@@ -43,10 +44,35 @@ resource "kubernetes_secret_v1" "gitops_repo" {
   }
 
   data = {
-    repoURL  = var.gitops_repo.url
-    username = "git" # any non-empty value works with a GitHub token
-    password = var.gitops_repo.token
+    repoURL        = var.git.repo_url_regex
+    repoURLIsRegex = "true"
+    username       = "git" # any non-empty value works with a GitHub token
+    password       = var.git.token
   }
+}
+
+# ECR read access for the Kargo controller (Warehouse image tags, `helm template` pulling
+# chart dependencies). Kargo first tries a per-Project role, kargo-project-<project>, and
+# falls back to this one when none exists: fine with a single tenant.
+# https://docs.kargo.io/operator-guide/security/ambient-credentials
+module "controller_pod_identity" {
+  source  = "terraform-aws-modules/eks-pod-identity/aws"
+  version = "~> 2.10"
+
+  name = "${var.cluster_name}-kargo-controller"
+  additional_policy_arns = {
+    ecr = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  }
+
+  associations = {
+    controller = {
+      cluster_name    = var.cluster_name
+      namespace       = var.namespace
+      service_account = "kargo-controller" # created by the chart
+    }
+  }
+
+  tags = var.tags
 }
 
 resource "helm_release" "kargo" {
@@ -70,5 +96,10 @@ resource "helm_release" "kargo" {
     node_selector            = var.node_selector
     api_replicas             = var.api.replicas
     webhooks_server_replicas = var.webhooks_server.replicas
+    # pod identity only reaches pods started after the association exists: changing
+    # this annotation rolls the controller onto it
+    controller_role_arn = module.controller_pod_identity.iam_role_arn
   })]
+
+  depends_on = [module.controller_pod_identity]
 }

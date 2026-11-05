@@ -3,6 +3,16 @@ variable "namespace" {
   type        = string
 }
 
+variable "cluster_name" {
+  description = "EKS cluster Kargo runs in (for the controller's pod identity association)"
+  type        = string
+}
+
+variable "tags" {
+  description = "aws tags"
+  type        = map(string)
+}
+
 variable "chart_version" {
   description = "akuity kargo chart version"
   type        = string
@@ -29,17 +39,17 @@ variable "argocd" {
   })
 }
 
-variable "gitops_repo" {
-  description = "gitops repo Kargo promotes by committing to, with a GitHub token that can push to it (Contents: read and write)"
+variable "git" {
+  description = "GitHub token Kargo uses for every repo matching repo_url_regex: read on app repos, read/write (Contents) on the gitops repo"
   type = object({
-    url   = string
-    token = string
+    repo_url_regex = string
+    token          = string
   })
   sensitive = true
 
   validation {
-    condition     = length(var.gitops_repo.token) > 0
-    error_message = "gitops_repo.token is empty: set ARGOCD_GITOPS_TOKEN (e.g. in .env)"
+    condition     = length(var.git.token) > 0
+    error_message = "git.token is empty: set ARGOCD_GITOPS_TOKEN (e.g. in .env)"
   }
 }
 

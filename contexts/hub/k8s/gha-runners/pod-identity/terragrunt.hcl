@@ -28,6 +28,8 @@ inputs = {
   # push/pull to every repository, but no deleting repositories or changing their policies
   policy_arns = {
     ecr = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+    # publishing helm charts to ECR Public (public.ecr.aws, .github/workflows/charts.yml)
+    ecr_public = "arn:aws:iam::aws:policy/AmazonElasticContainerRegistryPublicPowerUser"
   }
 
   tags = include.root.locals.aws.tags

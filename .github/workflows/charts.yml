@@ -1,13 +1,14 @@
-# Helm charts under charts/<dir>/ are published to ECR as OCI artifacts:
-#   oci://<ecr>/veyga/charts/<Chart.yaml name>:<Chart.yaml version>
+# Helm charts under charts/<dir>/ are published to ECR Public as OCI artifacts:
+#   oci://public.ecr.aws/<registry alias>/charts/<Chart.yaml name>:<Chart.yaml version>
+# Anyone can pull them anonymously (Argo CD, Kargo, helm): no chart credentials anywhere.
 #
 #   pull request       -> require every changed chart's version to be bumped
-#   push to main / run -> push every chart whose Chart.yaml version isn't in ECR yet
+#   push to main / run -> push every chart whose Chart.yaml version isn't published yet
 #
 # Publishing is driven by the registry, not the diff: unchanged charts are already
 # published and skipped, and a chart whose run failed is picked up by the next one.
 #
-# Each chart needs its ECR repo first: contexts/hub/ecr/charts/<Chart.yaml name>.
+# Each chart needs its repo first: contexts/hub/ecr-public/charts/<Chart.yaml name>.
 # Runs on our ARC runners (helm comes from our runner image); ECR access is the runner
 # pod's Pod Identity.
 name: charts
@@ -26,7 +27,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  CHART_REPO_PREFIX: veyga/charts
+  CHART_REPO_PREFIX: charts
 
 concurrency:
   group: charts-${{ github.ref }}
@@ -101,10 +102,17 @@ jobs:
           exit $failed
 
       # credentials come from the pod (Pod Identity); helm reads the docker login
-      - name: ecr login
+      # ECR Public: pulls are anonymous, pushing needs a login (its API is us-east-1 only).
+      # The registry alias is looked up, so it's never hardcoded here
+      - name: ecr public login
         if: github.event_name != 'pull_request'
         id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        run: |
+          alias=$(aws ecr-public describe-registries --region us-east-1 \
+            --query 'registries[0].aliases[?defaultRegistryAlias].name | [0]' --output text)
+          aws ecr-public get-login-password --region us-east-1 \
+            | helm registry login --username AWS --password-stdin public.ecr.aws
+          echo "registry=public.ecr.aws/$alias" >> "$GITHUB_OUTPUT"
 
       - name: publish
         if: github.event_name != 'pull_request'
@@ -118,7 +126,8 @@ jobs:
             version=$(helm show chart "$c" | grep -E '^version:' | awk '{print $2}' | tr -d "\"'")
             ref="oci://$REGISTRY/$CHART_REPO_PREFIX/$name"
 
-            # versions are immutable in ECR: an existing one is left alone. Only worth
+            # a published version is never overwritten (ECR Public tags are mutable, so this
+            # check is what keeps them immutable). Only worth
             # a warning when the chart changed in this push (a forgotten version bump).
             if helm show chart "$ref" --version "$version" >/dev/null 2>&1; then
               if [[ " $CHANGED " == *" $c "* ]]; then

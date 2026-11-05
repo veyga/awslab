@@ -1,0 +1,39 @@
+{{- range $type := include "veygaKargo.warehouseTypes" . | fromJsonArray }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ include "veygaKargo.warehouse" (dict "type" $type "context" $) }}
+  namespace: {{ include "veygaKargo.project" $ }}
+  labels:
+    {{- include "veygaKargo.labels" $ | nindent 4 }}
+  annotations:
+    {{- include "veygaKargo.wave" 1 | nindent 4 }}
+spec:
+  interval: {{ $.Values.warehouse.interval }}
+  subscriptions:
+    - git:
+        repoURL: {{ $.Values.gitRepo }}
+        branch: {{ $.Values.warehouse.branch }}
+        commitSelectionStrategy: NewestFromBranch
+        discoveryLimit: {{ $.Values.warehouse.discoveryLimit }}
+        includePaths:
+        {{- range ($.Values.warehouse.includePaths | default (list $.Values.render.chartPath)) }}
+          - {{ . }}
+        {{- end }}
+    {{- range $.Values.images }}
+    - image:
+        repoURL: {{ .repoURL }}
+        discoveryLimit: {{ $.Values.warehouse.discoveryLimit }}
+        {{- if eq $type "dev" }}
+        imageSelectionStrategy: NewestBuild
+        allowTagsRegexes:
+        {{- range $.Values.warehouse.devTagsRegexes }}
+          - {{ . | quote }}
+        {{- end }}
+        {{- else }}
+        imageSelectionStrategy: SemVer
+        strictSemvers: true
+        {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,21 @@
+{{- $auto := list -}}
+{{- range .Values.stages -}}
+{{- if .autoPromotion -}}{{- $auto = append $auto .name -}}{{- end -}}
+{{- end -}}
+{{- if $auto }}
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: {{ include "veygaKargo.project" . }}
+  namespace: {{ include "veygaKargo.project" . }}
+  labels:
+    {{- include "veygaKargo.labels" . | nindent 4 }}
+  annotations:
+    {{- include "veygaKargo.wave" 1 | nindent 4 }}
+spec:
+  promotionPolicies:
+  {{- range $auto }}
+    - stage: {{ . }}
+      autoPromotionEnabled: true
+  {{- end }}
+{{- end }}

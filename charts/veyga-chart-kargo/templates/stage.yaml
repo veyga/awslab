@@ -1,0 +1,35 @@
+{{- range $index, $stage := .Values.stages }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: {{ $stage.name }}
+  namespace: {{ include "veygaKargo.project" $ }}
+  labels:
+    {{- include "veygaKargo.labels" $ | nindent 4 }}
+  annotations:
+    {{- include "veygaKargo.wave" 1 | nindent 4 }}
+    kargo.akuity.io/color: {{ include "veygaKargo.color" $index | quote }}
+spec:
+  requestedFreight:
+    {{- /* a dev stage also takes release freight, so releases can be verified there first */}}
+    {{- $types := ternary (include "veygaKargo.warehouseTypes" $ | fromJsonArray) (list "prod") (eq $stage.warehouse "dev") }}
+    {{- range $type := $types }}
+    - origin:
+        kind: Warehouse
+        name: {{ include "veygaKargo.warehouse" (dict "type" $type "context" $) }}
+      sources:
+        {{- if $stage.upstream }}
+        stages:
+        {{- range $stage.upstream }}
+          - {{ . }}
+        {{- end }}
+        {{- else }}
+        direct: true
+        {{- end }}
+    {{- end }}
+  promotionTemplate:
+    spec:
+      steps:
+        {{- include "veygaKargo.steps" (dict "stage" $stage "context" $) | nindent 8 }}
+{{- end }}

@@ -14,5 +14,5 @@ inputs = {
   ci_repository = {
     enabled = true
   }
-  tags         = include.root.locals.aws.tags
+  tags = include.root.locals.aws.tags
 }

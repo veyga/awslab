@@ -16,6 +16,25 @@ resource "kubernetes_secret_v1" "gitops_repo" {
   }
 }
 
+# Credential template: any repo URL under the org prefix (e.g. app repos whose deploy/kargo
+# chart an Application installs) uses this token, without registering each repo
+resource "kubernetes_secret_v1" "github_org_creds" {
+  metadata {
+    name      = "creds-github-org"
+    namespace = var.namespace
+    labels = {
+      "argocd.argoproj.io/secret-type" = "repo-creds"
+    }
+  }
+
+  data = {
+    type     = "git"
+    url      = var.org_url
+    username = "git"
+    password = var.repo_token
+  }
+}
+
 # The one Application Terraform manages: it syncs root/ in the gitops repo, which
 # defines the AppProject + ApplicationSet that generate every app's Applications
 resource "kubernetes_manifest" "root" {

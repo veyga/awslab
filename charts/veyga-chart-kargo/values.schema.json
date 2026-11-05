@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "gitRepo",
+    "render",
+    "stages"
+  ],
+  "properties": {
+    "global": {
+      "type": "object"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "gitRepo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gitops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoURL": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "argocd": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "createApplications": {
+          "type": "boolean"
+        }
+      }
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chartPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "releaseName": {
+          "type": "string"
+        },
+        "buildDependencies": {
+          "type": "boolean"
+        },
+        "includeCRDs": {
+          "type": "boolean"
+        },
+        "environmentValueKey": {
+          "type": "string"
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repoURL",
+          "helmValueKey"
+        ],
+        "properties": {
+          "repoURL": {
+            "type": "string",
+            "minLength": 1
+          },
+          "helmValueKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "helmValuePrefix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "warehouse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "includePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interval": {
+          "type": "string"
+        },
+        "discoveryLimit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "devTagsRegexes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "warehouse",
+          "valuesFiles"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "warehouse": {
+            "type": "string",
+            "enum": [
+              "dev",
+              "prod"
+            ]
+          },
+          "upstream": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoPromotion": {
+            "type": "boolean"
+          },
+          "promotion": {
+            "type": "string",
+            "enum": [
+              "direct-push",
+              "git-pr"
+            ]
+          },
+          "valuesFiles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "namespace": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

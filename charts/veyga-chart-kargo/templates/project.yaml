@@ -1,0 +1,9 @@
+{{- include "veygaKargo.validate" . -}}
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ include "veygaKargo.project" . }}
+  labels:
+    {{- include "veygaKargo.labels" . | nindent 4 }}
+  annotations:
+    {{- include "veygaKargo.wave" 0 | nindent 4 }}

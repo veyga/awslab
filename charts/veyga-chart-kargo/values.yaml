@@ -1,0 +1,78 @@
+# -- App name (required). Kargo Project/namespace: kargo-<name>; Warehouses: <name>-dev/-prod;
+# per stage: Argo CD Application <name>-<stage>, rendered manifests in gitops at <stage>/<name>/
+name: ""
+
+# -- The app's own repo (required): holds the chart Kargo renders (render.chartPath)
+gitRepo: ""
+
+gitops:
+  # -- Repo the rendered manifests are committed to and Argo CD deploys from
+  repoURL: https://github.com/veygawslab/gitops.git
+  branch: main
+
+argocd:
+  # -- Namespace Argo CD (and its Applications) live in
+  namespace: argocd
+  # -- AppProject the Applications belong to
+  project: product
+  # -- Render one Argo CD Application per stage, deploying gitops <stage>/<name>/
+  createApplications: true
+
+render:
+  # -- Chart directory in gitRepo that gets `helm template`d
+  chartPath: deploy
+  # -- Helm release name; defaults to `name`
+  releaseName: ""
+  buildDependencies: true
+  includeCRDs: true
+  # -- Helm value set to the stage's name when rendering it, e.g.
+  # veyga-microservice.environment (-> ENVIRONMENT=dev / prod); empty = not set
+  environmentValueKey: ""
+
+# Images the Warehouses subscribe to and each promotion pins. Empty = git-only pipeline.
+# The value written to helmValueKey is <helmValuePrefix><tag>, e.g. with the veyga-microservice
+# chart: helmValueKey: veyga-microservice.image.repository, helmValuePrefix: "veyga/exampleapp:"
+images: []
+#  - repoURL: 519915467343.dkr.ecr.us-east-1.amazonaws.com/veyga/exampleapp
+#    helmValueKey: veyga-microservice.image.repository
+#    helmValuePrefix: "veyga/exampleapp:"
+
+# Two Warehouses, differing only in which image tags they accept:
+#   <name>-prod: release tags (YYYY.M.N CalVer, valid strict semver; cut on merge to main).
+#                Always created.
+#   <name>-dev:  build tags (short commit shas, from PRs), newest build wins. Created when a
+#                stage sets `warehouse: dev`.
+# Both also subscribe to gitRepo, so a change to the app's chart/values makes new freight too.
+warehouse:
+  # -- Branch of gitRepo that new freight comes from
+  branch: main
+  # -- Only commits touching these paths make new freight; defaults to [render.chartPath]
+  includePaths: []
+  interval: 5m0s
+  discoveryLimit: 20
+  # -- Image tags the dev Warehouse accepts
+  devTagsRegexes:
+    - "^[0-9a-f]{7}$"
+
+# Ordered pipeline (required).
+#   warehouse: dev  -> takes freight from both Warehouses (build tags, and release tags so a
+#                      release can be verified here before going further)
+#   warehouse: prod -> takes release freight only
+# A stage with no upstream takes freight straight from its Warehouse(s); otherwise only
+# freight already verified in its upstream stages.
+stages: []
+#  - name: dev
+#    warehouse: dev
+#    upstream: []
+#    autoPromotion: false
+#    promotion: direct-push   # or git-pr (PR into the gitops branch, waits for the merge)
+#    valuesFiles:             # relative to gitRepo's root, applied in order
+#      - deploy/manifests/bases/common/values.yaml
+#      - deploy/manifests/overlays/dev/values.yaml
+#    namespace: ""            # defaults to <name>-<stage>
+#  - name: prod
+#    warehouse: prod
+#    upstream: [dev]
+#    valuesFiles:
+#      - deploy/manifests/bases/common/values.yaml
+#      - deploy/manifests/overlays/prod/values.yaml

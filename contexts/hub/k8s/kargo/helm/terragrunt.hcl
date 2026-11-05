@@ -24,6 +24,8 @@ dependencies {
 }
 
 inputs = {
+  cluster_name  = include.root.locals.ctx
+  tags          = include.root.locals.aws.tags
   namespace     = local.kargo_vars.namespace
   chart_version = local.kargo_vars.chart_version
   domain        = local.kargo_vars.domain
@@ -40,9 +42,9 @@ inputs = {
 
   # same fine-grained PAT Argo CD uses (contexts/hub/k8s/argocd/root): veygawslab/gitops,
   # "Contents: read and write". Kept in the local .env file
-  gitops_repo = {
-    url   = local.argo_vars.repo_url
-    token = get_env("ARGOCD_GITOPS_TOKEN", "")
+  git = {
+    repo_url_regex = "^https://github\\.com/veygawslab/.+$"
+    token          = get_env("ARGOCD_GITOPS_TOKEN", "")
   }
 
   node_selector = {
