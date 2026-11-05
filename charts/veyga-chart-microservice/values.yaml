@@ -1,0 +1,28 @@
+# Image: <registry>/<repository>. Put the tag on the repository (e.g. veyga/helloapp:1.2.3);
+# without one the pod pulls latest.
+image:
+  registry: 519915467343.dkr.ecr.us-east-1.amazonaws.com
+  repository: "" # required
+
+deployment:
+  # Entrypoint override; the image's ENTRYPOINT is used when empty
+  command: []
+  # Port the container listens on for HTTP
+  httpPort: 8080
+  replicas: 1
+
+service:
+  type: ClusterIP
+  # Port the Service exposes; forwards to deployment.httpPort
+  port: 80
+
+ingress:
+  enabled: false
+  className: traefik
+  # e.g. helloapp.veyga.click
+  host: ""
+  # cert-manager ClusterIssuer for the TLS certificate; empty = plain HTTP
+  clusterIssuer: clusterissuer-prod
+
+# Node labels the pods must land on, e.g. karpenter.sh/nodepool: main
+nodeSelector: {}

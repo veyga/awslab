@@ -1,0 +1,11 @@
+apiVersion: v2
+name: veyga-microservice
+description: A Helm chart for generic veygawslab microservices
+maintainers:
+- email: andrewstefanich@gmail.com
+  name: veyga
+type: application
+
+version: 0.0.1
+
+appVersion: "0.0.1"
