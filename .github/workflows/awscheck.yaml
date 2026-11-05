@@ -1,0 +1,23 @@
+name: awscheck
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: awscheck-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: veygawslab-runner
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repo contents
+        run: git log --oneline -5 && ls -la

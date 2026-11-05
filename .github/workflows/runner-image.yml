@@ -1,0 +1,96 @@
+#   pull request -> <ecr>/gha-runner:<short head sha>  (immutable, for testing the PR)
+#   push to main -> <ecr>/gha-runner:latest             (the only mutable tag)
+name: runner-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/gha-runner/**
+      - .github/workflows/runner-image.yml
+  pull_request:
+    paths:
+      - images/gha-runner/**
+      - .github/workflows/runner-image.yml
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "519915467343"
+  ECR_REPOSITORY: gha-runner
+  IMAGE_CONTEXT: images/gha-runner
+  IMAGE_PLATFORMS: linux/amd64
+
+# never cancel a push to latest midway; superseded PR builds can go
+concurrency:
+  group: runner-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    # fork PRs get no OIDC token, so they can't push
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for the AWS role
+    steps:
+      - uses: actions/checkout@v7
+
+      # PRs build the merge commit, but are tagged with the PR head sha (what `git log` shows)
+      - name: image tag
+        id: tag
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: aws credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-ecr-push
+          role-session-name: runner-image-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ecr login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # sha tags are immutable: re-running for an already-pushed sha is a no-op, not a failure
+      - name: check for existing tag
+        if: steps.tag.outputs.tag != 'latest'
+        id: exists
+        run: |
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "already pushed, skipping"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+        if: steps.exists.outputs.exists != 'true'
+
+      - name: build and push
+        if: steps.exists.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.IMAGE_CONTEXT }}
+          platforms: ${{ env.IMAGE_PLATFORMS }}
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha || github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: summary
+        run: |
+          echo "image: \`${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
