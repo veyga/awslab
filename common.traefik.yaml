@@ -1,0 +1,3 @@
+proxy: traefik
+namespace: traefik
+ingressclass: traefik
