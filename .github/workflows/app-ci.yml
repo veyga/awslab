@@ -89,7 +89,11 @@ jobs:
       tag: ${{ steps.ref.outputs.tag }}
       published: ${{ steps.exists.outputs.published }}
     steps:
+      # the PR head itself (checkout defaults to GitHub's temporary merge commit): the image is
+      # tagged with, and Kargo pairs it with, exactly this commit
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: ecr login
         id: ecr
@@ -103,6 +107,7 @@ jobs:
           REPO: ${{ steps.ecr.outputs.registry }}/${{ inputs.image }}
         run: |
           echo "tag=${SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git log -1 --format=%ct "$SHA")" >> "$GITHUB_OUTPUT"
           echo "candidate=$REPO-ci:${SHA::7}" >> "$GITHUB_OUTPUT"
           echo "image=$REPO:${SHA::7}" >> "$GITHUB_OUTPUT"
 
@@ -122,9 +127,14 @@ jobs:
       - uses: docker/setup-buildx-action@v4
         if: steps.exists.outputs.published != 'true' && steps.exists.outputs.built != 'true'
 
+      # the image's creation time = the commit's time: a fully cached build (e.g. a deploy/-only
+      # change) would otherwise reuse the previous image's time, and Kargo's dev Warehouse
+      # (NewestBuild) couldn't tell the two apart
       - name: build and push candidate
         if: steps.exists.outputs.published != 'true' && steps.exists.outputs.built != 'true'
         uses: docker/build-push-action@v7
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.ref.outputs.epoch }}
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
