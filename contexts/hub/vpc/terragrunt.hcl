@@ -13,10 +13,10 @@ inputs = {
   public_subnet_tags = {
     "kubernetes.io/role/elb" = 1 # where to put LBs
   }
-  # private_subnet_tags = {
-  #   "kubernetes.io/role/internal-elb" = 1
-  #   "karpenter.sh/discovery"          = include.root.locals.ctx
-  # }
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = 1
+    "karpenter.sh/discovery"          = include.root.locals.ctx
+  }
   aws_tags = include.root.locals.aws.tags
 }
 
