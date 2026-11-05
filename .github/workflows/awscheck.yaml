@@ -19,8 +19,9 @@ jobs:
     # needs the scale set in dind mode; the container is started by the dind sidecar
     container:
       image: amazon/aws-cli:2.39.4
-      # Pod Identity credentials: the EKS webhook gives every container in the runner pod
-      # (dind included) this env + token mount, but a job container has to be handed them
+      # Pod Identity credentials: the EKS pod identity webhook injects this env + token mount
+      # into the runner pod's containers and initContainers (so the dind sidecar has the
+      # token file), but a container dind starts gets nothing unless it's handed them here
       env:
         AWS_REGION: us-east-1
         AWS_CONTAINER_CREDENTIALS_FULL_URI: http://169.254.170.23/v1/credentials
