@@ -4,7 +4,6 @@ locals {
   arch              = "amd"
   aws_tags = {
     "environment" = "infrastructure"
-    "product"     = "iiify"
     "cluster"     = basename(get_terragrunt_dir())
   }
 }
