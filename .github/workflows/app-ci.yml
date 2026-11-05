@@ -1,14 +1,16 @@
 # Reusable CI for app repos: PRs build + test an image, merges to main release it.
 #
-#   pull request -> build the image, run `test-command` inside it, then push that same image
-#                   as <ecr>/<image>:<sha7> (PR head sha). Nothing is pushed unless the tests
-#                   pass.
-#   push to main -> find the merged PR, point <ecr>/<image>:<version> at the image built for it
-#                   (no rebuild), then create the v<version> git tag + GitHub release
+#   pull request -> build:   build the image (layers cached in the GitHub Actions cache) and
+#                            push it as a candidate, <ecr>/<image>-ci:<sha7> (PR head sha)
+#                   test:    pull the candidate, run `test-command` inside it
+#                   publish: once the tests pass, copy the candidate to <ecr>/<image>:<sha7>
+#   push to main -> release: find the merged PR, point <ecr>/<image>:<version> at the image
+#                            published for it, then create the v<version> git tag + release
 #
-# So the image has to carry its test tooling (e.g. the dev dependency group) and tests: the
-# image that's released is byte-for-byte the one that was tested. Layers are cached in the
-# GitHub Actions cache across runs.
+# Every copy is registry-side (no rebuild): the released image is byte-for-byte the one that
+# was tested, so the image has to carry its test tooling (e.g. the dev dependency group) and
+# tests. Candidates live in their own repository, <image>-ci, whose images expire after a few
+# days (contexts/hub/ecr/<name>: ci_repository.enabled = true).
 #
 # Versions are CalVer, YYYY.M.N (UTC): N counts releases within the month, from 0
 # (2026.11.0, 2026.11.1, 2026.12.0). No zero padding, so every version is also strict semver
@@ -77,70 +79,110 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 30
+    # only the tag crosses jobs: an output with the registry (it holds the account id) can be
+    # dropped as a possible secret, so each job derives its refs from its own ecr login
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      tag: ${{ steps.ref.outputs.tag }}
+      published: ${{ steps.exists.outputs.published }}
     steps:
       - uses: actions/checkout@v7
-
-      # tagged with the PR head sha, so the release can find this exact image after the merge
-      - name: image tag
-        id: tag
-        env:
-          SHA: ${{ github.event.pull_request.head.sha }}
-        run: echo "tag=${SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: ecr login
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: image ref
+      # tagged with the PR head sha, so the release can find this exact image after the merge
+      - name: image refs
         id: ref
-        run: echo "ref=${{ steps.ecr.outputs.registry }}/${{ inputs.image }}:${{ steps.tag.outputs.tag }}" >> "$GITHUB_OUTPUT"
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ steps.ecr.outputs.registry }}/${{ inputs.image }}
+        run: |
+          echo "tag=${SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "candidate=$REPO-ci:${SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "image=$REPO:${SHA::7}" >> "$GITHUB_OUTPUT"
 
-      # tags are immutable: a re-run for an already pushed sha is a no-op
-      - name: check for existing tag
+      # tags are immutable: a re-run for an already published sha is a no-op, and one whose
+      # candidate exists (e.g. after a failed test) reuses it
+      - name: check for existing images
         id: exists
         run: |
-          if docker manifest inspect "${{ steps.ref.outputs.ref }}" >/dev/null 2>&1; then
-            echo "::notice::${{ steps.ref.outputs.ref }} already pushed, skipping build"
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+          if docker manifest inspect "${{ steps.ref.outputs.image }}" >/dev/null 2>&1; then
+            echo "::notice::${{ steps.ref.outputs.image }} already published"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          elif docker manifest inspect "${{ steps.ref.outputs.candidate }}" >/dev/null 2>&1; then
+            echo "::notice::${{ steps.ref.outputs.candidate }} already built"
+            echo "built=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: docker/setup-buildx-action@v4
-        if: steps.exists.outputs.exists != 'true'
+        if: steps.exists.outputs.published != 'true' && steps.exists.outputs.built != 'true'
 
-      # load into the runner's docker daemon: tested there, then pushed as-is
-      - name: build
-        if: steps.exists.outputs.exists != 'true'
+      - name: build and push candidate
+        if: steps.exists.outputs.published != 'true' && steps.exists.outputs.built != 'true'
         uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           platforms: ${{ inputs.platforms }}
-          load: true
+          push: true
           provenance: false
           sbom: false
-          build-args: APP_VERSION=${{ steps.tag.outputs.tag }}
-          tags: ${{ steps.ref.outputs.ref }}
+          build-args: APP_VERSION=${{ steps.ref.outputs.tag }}
+          tags: ${{ steps.ref.outputs.candidate }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  test:
+    needs: build
+    if: needs.build.outputs.published != 'true' && inputs.test-command != ''
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    env:
+      CANDIDATE: ${{ inputs.image }}-ci:${{ needs.build.outputs.tag }}
+    steps:
+      - name: ecr login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: pull candidate
+        run: docker pull --quiet "${{ steps.ecr.outputs.registry }}/$CANDIDATE"
+
       - name: test
-        if: steps.exists.outputs.exists != 'true' && inputs.test-command != ''
         env:
           TEST_COMMAND: ${{ inputs.test-command }}
-        run: docker run --rm --entrypoint sh "${{ steps.ref.outputs.ref }}" -c "$TEST_COMMAND"
+        run: docker run --rm --entrypoint sh "${{ steps.ecr.outputs.registry }}/$CANDIDATE" -c "$TEST_COMMAND"
 
-      - name: push
-        if: steps.exists.outputs.exists != 'true'
-        run: docker push "${{ steps.ref.outputs.ref }}"
+  publish:
+    # only after the tests pass (or when there are none: test is then skipped)
+    needs: [build, test]
+    if: >-
+      always()
+      && needs.build.result == 'success'
+      && needs.build.outputs.published != 'true'
+      && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    env:
+      CANDIDATE: ${{ inputs.image }}-ci:${{ needs.build.outputs.tag }}
+      IMAGE: ${{ inputs.image }}:${{ needs.build.outputs.tag }}
+    steps:
+      - name: ecr login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # registry-side copy: the published image is byte-for-byte the tested candidate
+      - name: publish
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: docker buildx imagetools create --tag "$REGISTRY/$IMAGE" "$REGISTRY/$CANDIDATE"
 
       - name: summary
         run: |
-          echo "image: \`${{ steps.ref.outputs.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "image: \`${{ steps.ecr.outputs.registry }}/$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
 
   release:
     if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
@@ -160,7 +202,7 @@ jobs:
         with:
           fetch-depth: 0 # tags + history since the last release
 
-      # the image to release is the one built and tested for the merged PR's head commit
+      # the image to release is the one published (built + tested) for the merged PR's head
       - name: find merged PR
         id: pr
         run: |
